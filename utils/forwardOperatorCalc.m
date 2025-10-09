@@ -25,14 +25,15 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
 
     %% --- Determine k-space sampling points (ky) ---
 
+    % Logic for sequences with a SPEN navigator
+    ky_adc = kspace.ktraj_adc(2, :);
+    % Find indices where k-space trajectory changes (start of new acquisition lines)
+    idx_change = find(diff(ky_adc) ~= 0);
+    idx_start = [1, idx_change + 1];
+    ky_lines = ky_adc(idx_start); % Extract ky values at the start of each line
+
     if param.spenNavigator
-        % Logic for sequences with a SPEN navigator
-        ky_adc = kspace.ktraj_adc(2, :);
-        % Find indices where k-space trajectory changes (start of new acquisition lines)
-        idx_change = find(diff(ky_adc) ~= 0);
-        idx_start = [1, idx_change + 1];
-        ky_lines = ky_adc(idx_start); % Extract ky values at the start of each line
-        
+     
         if size(ky_lines, 1) < 2
             % If only one row (common for some k-space calculations), flip for correct order
             ky = fliplr(ky_lines);
@@ -42,10 +43,8 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
         end
     else
         % Logic for standard SPEN (no explicit navigator block)
-        % Sample ky-space uniformly across the duration of the gradient
-        ky = linspace(-param.g * param.rfdur / 2, param.g * param.rfdur / 2, param.Ny);
+        ky = sort(ky_lines(2:Ny + 1));
     end
-
     %% --- Define Spatial and Shift Vectors ---
 
     % Spatial vector 'y' covering the FOV
@@ -74,3 +73,4 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
     kernel = ifftshift(fft(fftshift(exp(1i * kernel), 2), [], 2), 2);
 
 end
+

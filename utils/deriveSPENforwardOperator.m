@@ -120,7 +120,7 @@ if ~isempty(simulateSPENfo)
     % Create ADC sampling vector
     samples = zeros(1, seq.blockDurations(2) / dt);
     samples(1:end) = 1; % Assume continuous sampling during the readout block
-    adc_samples = [zeros(1, seq.blockDurations(1) / dt - 100) samples];
+    adc_samples = [zeros(1, round(seq.blockDurations(1) / dt - 100)) samples];
 
     % --- Simulation Setup and Parameters ---
     fov1 = param.fov(1) * 1000; % FOV in mm (y-dimension)

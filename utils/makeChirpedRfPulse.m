@@ -39,16 +39,15 @@ function rf = makeChirpedRfPulse(varargin)
     end
 
     Nraw = round(opt.duration / opt.dwell + eps);
-    % Number of points must be divisible by 4 (library/hardware requirement)
-    N = floor(Nraw / 4) * 4; 
-    
+    duration_actual = Nraw * opt.dwell;
+
     % Time vector from 0 to pulse duration
-    t = linspace(0, opt.duration, N);
-    
+    t=0:opt.dwell:duration_actual;
+    N=length(t);
     % --- Pulse design: Amplitude and Phase ---
     
     % 1. Amplitude modulation (AM)
-    am = 1 - abs(cos(pi * t / opt.duration)).^opt.n_fac;
+    am = 1 - abs(cos(pi * t / duration_actual)).^opt.n_fac;
 
     % 2. Frequency modulation (FM) - linear chirp
     fm = linspace(-opt.bandwidth / 2, opt.bandwidth / 2, N) * 2 * pi;
@@ -92,9 +91,9 @@ function rf = makeChirpedRfPulse(varargin)
     % pulse to obtain the same tip angle. This is because the FM
     % pulse is on-resonance for any given spin for only a frac-
     % tion of the duration of that pulse.
-    if opt.ang == 180
+    if opt.ang == 180||opt.ang == pi
         signal = signal * ((opt.ang / 360) / abs(sum(signal) * opt.dwell)) * 2.1;
-    elseif opt.ang == 90
+    elseif opt.ang == 90||opt.ang == pi/2
         signal = signal * ((opt.ang / 360) / abs(sum(signal) * opt.dwell)) * 1.07;
     else
         % General scaling for other angles (without empirical factor)
@@ -103,13 +102,13 @@ function rf = makeChirpedRfPulse(varargin)
         end
     end
     
-    % If N was rounded down, pad with zeros
-    if (N ~= Nraw)
-        Npad = Nraw - N;
-        signal = [zeros(1, floor(Npad/2)) signal zeros(1, Npad-floor(Npad/2))];
-        N = Nraw;
-        t = (0:N-1) * opt.dwell;
-    end
+    % % If N was rounded down, pad with zeros
+    % if (N ~= Nraw)
+    %     Npad = Nraw - N;
+    %     signal = [zeros(1, floor(Npad/2)) signal zeros(1, Npad-floor(Npad/2))];
+    %     N = Nraw;
+    %     t = (0:N-1) * opt.dwell;
+    % end
     
     % --- Create Pulseq RF structure ---
     rf.type = 'rf';

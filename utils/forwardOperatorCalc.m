@@ -43,7 +43,7 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
         end
     else
         % Logic for standard SPEN (no explicit navigator block)
-        ky = sort(ky_lines(2:Ny + 1));
+        ky = sort(ky_lines);
     end
     %% --- Define Spatial and Shift Vectors ---
 

@@ -282,5 +282,4 @@ grid on
 simulateSPENfo.spins_per_voxel = 10;
 
 % simulateSPENfo=[];
-
 deriveSPENforwardOperator('exc',seq,sys,simulateSPENfo)

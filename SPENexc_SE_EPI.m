@@ -317,4 +317,4 @@ simulateSPENfo.spins_per_voxel = 10;
 
 % simulateSPENfo=[];
 
-deriveSPENforwardOperator(seq,sys,simulateSPENfo)
+deriveSPENforwardOperator('exc',seq,sys,simulateSPENfo)

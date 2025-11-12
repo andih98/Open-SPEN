@@ -100,7 +100,7 @@ end
 
 % Calculate the analytical forward operator kernel
 % This function is assumed to compute the kernel based on the k-space trajectory and sequence parameters
-kernel = forwardOperatorCalc(kspace, param, use);
+kernel = forwardOperatorCalc(kspace, param,use);
 
 %% --- Calculated Forward Operator Visualization ---
 

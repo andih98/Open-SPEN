@@ -1,4 +1,4 @@
-function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
+function [kernel, ky, s] = forwardOperatorCalc(kspace, param, use)
 % FORWARDOPERATORCALC Calculates the analytical SPEN forward operator kernel.
 %
 % This function determines the quadratic phase modulation kernel for SPEN,
@@ -49,7 +49,15 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param)
 
     % Spatial vector 'y' covering the FOV
     % The number of spatial points is set by the time-Bandwidth product (T_rf * BW_sweep)
-    y = linspace(-fov / 2, fov / 2, round(abs(param.sweepBw * param.rfdur)));
+    if strcmp(use,'exc')
+        y = linspace(-fov / 2, fov / 2, round(abs(param.sweepBw * param.rfdur)));
+    elseif strcmp(use,'ref')
+        y = linspace(-fov , fov , 2*round(abs(param.sweepBw * param.rfdur)));
+    else
+        warning('Define SPEN mode "exc" when the chirped RF is used as excitation pulse or "ref" when it is used for refocusing!')
+        return
+    end
+    % y = linspace(-fov / 2, fov / 2, round(abs(param.sweepBw * param.rfdur)));
 
     % Effective spatial shift vector 's' corresponding to k-space points (ky)
     % This shift s = (G * T_k * FOV) / (G_max * T_rf) is proportional to ky

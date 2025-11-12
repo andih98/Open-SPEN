@@ -1,6 +1,6 @@
 %% SPEN-SE-EPI Sequence Generation with Pulseq
-% This script generates a ss SPEN Spin-Echo EPI sequence with the chirped-RF pulse as excitation pulse, using the
-% Pulseq toolbox for MATLAB.
+% This script generates a ss SPEN Spin-Echo EPI sequence with the 
+% chirped-RF pulse as excitation pulse, using the Pulseq toolbox for MATLAB.
 
 
 %% --- Initialization ---
@@ -265,42 +265,8 @@ seq.setDefinition('spenNavigator', spenNavigator);
 % Optional: PNS Calculation (Peripheral Nerve Stimulation)
 % [pns_ok, pns_n, pns_c, tpns] = seq.calcPNS('.asc');
 
-%% --- Plotting, Trajectory Calculation, and Verification ---
-
-% 1. Plot the sequence waveforms
-seq.plot('stacked', 1); 
-   
-% 2. Calculate the k-space trajectory
-[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
-
-% 3. Plot k-space trajectory for visual inspection
-% Plot k-space trajectory components over time
-figure('Name', 'K-space vs. Time');
-plot(t_ktraj, ktraj'); % Plot the entire k-space trajectory over time
-hold on;
-plot(t_adc, ktraj_adc(1,:), '.'); % Overlay ADC sampling points for the kx-axis
-title('K-space Trajectory vs. Time');
-xlabel('Time (s)');
-ylabel('k-space (1/m)');
-legend({'kx', 'ky', 'kz'});
-
-% Plot 2D k-space coverage
-figure('Name', '2D K-space Trajectory');
-plot(ktraj(1,:), ktraj(2,:), 'b'); % Full trajectory path
-hold on;
-plot(ktraj_adc(1,:), ktraj_adc(2,:), 'r.'); % ADC sampling points
-axis('equal'); % Enforce 1:1 aspect ratio to correctly display the trajectory shape
-title('2D K-space Trajectory');
-xlabel('kx (1/m)');
-ylabel('ky (1/m)');
-
-% 4. Perform sanity checks
-% Calculate the actual spin-echo time from the sequence events
-TE_check = (t_refocusing(1) - t_excitation(1)) * 2;
-fprintf('Intended TE = %.3f ms, actual spin-echo TE = %.3f ms\n', TE * 1e3, TE_check * 1e3); 
-
-% Generate and display a textual report of the sequence
-rep = seq.testReport;
+%% Check
+rep = check(seq, TE, [], []);
 fprintf([rep{:}]);
 
 %%

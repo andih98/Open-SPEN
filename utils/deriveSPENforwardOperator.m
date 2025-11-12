@@ -1,4 +1,4 @@
-function deriveSPENforwardOperator(seq, sys, simulateSPENfo)
+function deriveSPENforwardOperator(use, seq, sys, simulateSPENfo)
 % DERIVESPENFORWARDOPERATOR Calculates the forward operator for a SPEN
 % (SPatiotemporal ENcoding) sequence, and optionally simulates the SPEN Forward Operator using a Bloch
 % equation model, adapting code from a Stanford University Lecture: "Bloch
@@ -20,38 +20,78 @@ param.R = seq.getDefinition('R');           % Parallel imaging acceleration fact
 param.rfdur = seq.getDefinition('rfref_dur'); % Duration of the RF pulse [s]
 param.sweepBw = seq.getDefinition('sweepBw'); % Bandwidth of the chirped RF pulse [Hz]
 param.g = seq.getDefinition('Gspen');       % SPEN gradient amplitude
-param.spenNavigator = seq.getDefinition('spenNavigator'); % SPEN navigator flag (unused in this core logic)
-
+param.spenNavigator = [];
 % Initialize a new sequence object based on system specs (important for building the sequence)
 seq = mr.Sequence(sys);
-roDur = param.rfdur; % Readout duration is set equal to the RF pulse duration
 
-%% --- Gradient and RF Pulse Generation ---
+if strcmp(use,'exc')
+    roDur = param.rfdur; % Readout duration is set equal to the RF pulse duration
+    
+    %% --- Gradient and RF Pulse Generation ---
+    
+    % Excitation Gradient (Phase Encoding/SPEN)
+    % Area = R/FOV * Ny (normalized k-space units, scaled for the simulation context)
+    gexc = mr.makeTrapezoid('y', sys, 'FlatArea', param.R/param.fov(2)*param.Ny, ...
+                            'FlatTime', param.rfdur, 'Delay', sys.rfDeadTime);
+    
+    % Chirped RF Excitation Pulse (90-degree)
+    rf = makeChirpedRfPulse('duration', param.rfdur, ...
+                             'Delay', sys.rfDeadTime + gexc.riseTime, ...
+                             'bandwidth', param.sweepBw, ...
+                             'ang', 90, 'n_fac', 40, 'system', sys, 'use', 'excitation');
+    
+    % Acquisition/Readout Gradient
+    % The actual gradient applied during the ADC, its area is crucial for the chirp encoding
+    gacq = mr.makeTrapezoid('y', sys, 'Area', -gexc.flatArea, 'Duration', roDur);
+    
+    % Analog-to-Digital Converter (ADC) for readout
+    adc = mr.makeAdc(param.Ny, 'duration', gacq.flatTime, 'delay', gacq.riseTime);
+    
+    %% --- Sequence Construction ---
+    
+    % Add excitation block (chirped-RF and Gexc)
+    seq.addBlock(rf, gexc);
+    % Add readout block (Gacq and ADC)
+    seq.addBlock(gacq, adc);
+else
 
-% Excitation Gradient (Phase Encoding/SPEN)
-% Area = R/FOV * Ny (normalized k-space units, scaled for the simulation context)
-gexc = mr.makeTrapezoid('y', sys, 'FlatArea', param.R/param.fov(2)*param.Ny, ...
-                        'FlatTime', param.rfdur, 'Delay', sys.rfDeadTime);
+    roDur = 2*param.rfdur; % Readout duration is set 2 x RF pulse duration
 
-% Chirped RF Excitation Pulse (90-degree)
-rf = makeChirpedRfPulse('duration', param.rfdur, ...
-                         'Delay', sys.rfDeadTime + gexc.riseTime, ...
-                         'bandwidth', param.sweepBw, ...
-                         'ang', 90, 'n_fac', 40, 'system', sys, 'use', 'excitation');
+    %% --- Gradient and RF Pulse Generation ---
 
-% Acquisition/Readout Gradient
-% The actual gradient applied during the ADC, its area is crucial for the chirp encoding
-gacq = mr.makeTrapezoid('y', sys, 'Area', -gexc.flatArea, 'Duration', roDur);
+    rf = mr.makeBlockPulse(90*pi/180,sys,'Duration',1e-3, 'use', 'excitation');
 
-% Analog-to-Digital Converter (ADC) for readout
-adc = mr.makeAdc(param.Ny, 'duration', gacq.flatTime, 'delay', gacq.riseTime);
+    % Define the SPEN gradient ('gref')
+    gref = mr.makeTrapezoid('y', sys, 'Amplitude', param.sweepBw / param.fov(1), ...
+        'FlatTime', param.rfdur, 'Delay', sys.rfDeadTime);
+    
+    % --- SPEN chirped RF refocusing pulse (180-degree)
+    % This uses a custom function 'makeChirpedRfPulse' (assumed to be on path)
+    rfref = makeChirpedRfPulse('duration', param.rfdur, ...
+        'Delay', sys.rfDeadTime + gref.riseTime, 'bandwidth', param.sweepBw, ...
+        'ang', 180, 'n_fac', 40, 'system', sys, 'use', 'refocusing');
+    
+    % Acquisition/Readout Gradient
+    % The actual gradient applied during the ADC, its area is crucial for the chirp encoding
+    gre = mr.makeTrapezoid('y', sys, 'Area', -gref.flatArea);
 
-%% --- Sequence Construction ---
+    gacq = mr.makeTrapezoid('y', sys, 'Area', 2*gref.flatArea, 'Duration', roDur);
+    
+    % Analog-to-Digital Converter (ADC) for readout
+    adc = mr.makeAdc(param.Ny, 'duration', gacq.flatTime, 'delay', gacq.riseTime);
 
-% Add excitation block (chirped-RF and Gexc)
-seq.addBlock(rf, gexc);
-% Add readout block (Gacq and ADC)
-seq.addBlock(gacq, adc);
+
+    delay=gref.flatTime+sys.rfRingdownTime+mr.calcDuration(gre)-(mr.calcDuration(rf)/2+gref.riseTime);
+    
+    %% --- Sequence Construction ---
+    
+    seq.addBlock(rf);
+    seq.addBlock(mr.makeDelay(delay));
+    seq.addBlock(rfref,gref);
+    seq.addBlock(gre);
+    seq.addBlock(gacq, adc);
+
+end
 
 %% --- K-space Calculation and Forward Operator Derivation ---
 
@@ -60,7 +100,7 @@ seq.addBlock(gacq, adc);
 
 % Calculate the analytical forward operator kernel
 % This function is assumed to compute the kernel based on the k-space trajectory and sequence parameters
-kernel = forwardOperatorCalc(kspace, param);
+kernel = forwardOperatorCalc(kspace, param, use);
 
 %% --- Calculated Forward Operator Visualization ---
 
@@ -81,7 +121,11 @@ c.Label.FontSize = 12;
 
 % Plot 2: Calculated Forward Operator (Magnitude)
 N = size(kernel, 2); % Number of y-coordinates in the kernel
-Kvec = (-N/2:N/2-1) * param.sweepBw / size(kernel, 2); % Frequency vector after FFT shift [Hz]
+if strcmp(use,'exc')
+    Kvec = (-N/2:N/2-1) * param.sweepBw / size(kernel, 2); % Frequency vector after FFT shift [Hz]
+else
+    Kvec = (-N:N-1) * param.sweepBw / size(kernel, 2); % Frequency vector after FFT shift [Hz]
+end
 figure;
 imagesc(Kvec, [1, size(kernel, 1)], abs(fliplr(kernel)) / max(abs(fliplr(kernel)), [], "all"));
 colormap("parula");
@@ -106,21 +150,31 @@ grid on;
 if ~isempty(simulateSPENfo)
     dt = sys.rfRasterTime; % Time step for simulation (RF raster time)
 
-    % Get gradient waveforms and times from the sequence
-    gw_data = seq.waveforms_and_times();
+    [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc, pm_adc]=seq.waveforms_and_times(true); % also export RF
+
+    last=round(max([wave_data{1,2}(1,:) wave_data{1,4}(1,:)]),6);
+    t=0:sys.rfRasterTime:last;
+
+    gy_pad_first=zeros(1,round(wave_data{1, 2}(1, 1)/sys.rfRasterTime));
+    gy_pad_last=zeros(1,round((last-wave_data{1, 2}(1, end))/sys.rfRasterTime));
+
+    rf_pad_first=zeros(1,round(wave_data{1, 4}(1, 1)/sys.rfRasterTime));
+    rf_pad_last=zeros(1,round((last-wave_data{1, 4}(1, end))/sys.rfRasterTime));
+
     % Extract the y-gradient waveform
-    gy = mr.pts2waveform(gw_data{2}(1, :), gw_data{2}(2, :), sys.rfRasterTime);
+    gy = mr.pts2waveform(wave_data{1, 2}  (1, :), wave_data{1, 2}  (2, :), sys.rfRasterTime);
+    rf = mr.pts2waveform(wave_data{1, 4}  (1, :), wave_data{1, 4}  (2, :), sys.rfRasterTime);
 
-    gyWaveform = gy;
+    gy=[gy_pad_first gy gy_pad_last];
+    rf=[rf_pad_first rf rf_pad_last];
 
-    % Align RF waveform with the gradient waveform time
-    rfWaveform = [zeros(1, round(gexc.riseTime / dt)) rf.signal];
-    rfWaveform = [rfWaveform zeros(1, length(gy) - length(rfWaveform))];
 
-    % Create ADC sampling vector
-    samples = zeros(1, seq.blockDurations(2) / dt);
-    samples(1:end) = 1; % Assume continuous sampling during the readout block
-    adc_samples = [zeros(1, round(seq.blockDurations(1) / dt - 100)) samples];
+    gyWaveform = [gy 0];
+    rfWaveform = [rf 0];
+   
+    indices = knnsearch(t(:), t_adc(:));
+    adc_samples =zeros(size(t));
+    adc_samples(indices)=1;
 
     % --- Simulation Setup and Parameters ---
     fov1 = param.fov(1) * 1000; % FOV in mm (y-dimension)

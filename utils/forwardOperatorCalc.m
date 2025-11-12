@@ -1,4 +1,4 @@
-function [kernel, ky, s] = forwardOperatorCalc(kspace, param, use)
+function [kernel, ky, s] = forwardOperatorCalc(kspace, param,use)
 % FORWARDOPERATORCALC Calculates the analytical SPEN forward operator kernel.
 %
 % This function determines the quadratic phase modulation kernel for SPEN,
@@ -43,13 +43,13 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param, use)
         end
     else
         % Logic for standard SPEN (no explicit navigator block)
-        ky = sort(ky_lines);
+        ky = sort(ky_lines(1:Ny));
     end
     %% --- Define Spatial and Shift Vectors ---
 
     % Spatial vector 'y' covering the FOV
     % The number of spatial points is set by the time-Bandwidth product (T_rf * BW_sweep)
-    if strcmp(use,'exc')
+     if strcmp(use,'exc')
         y = linspace(-fov / 2, fov / 2, round(abs(param.sweepBw * param.rfdur)));
     elseif strcmp(use,'ref')
         y = linspace(-fov , fov , 2*round(abs(param.sweepBw * param.rfdur)));
@@ -57,8 +57,6 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param, use)
         warning('Define SPEN mode "exc" when the chirped RF is used as excitation pulse or "ref" when it is used for refocusing!')
         return
     end
-    % y = linspace(-fov / 2, fov / 2, round(abs(param.sweepBw * param.rfdur)));
-
     % Effective spatial shift vector 's' corresponding to k-space points (ky)
     % This shift s = (G * T_k * FOV) / (G_max * T_rf) is proportional to ky
     s = fov * ky / (R * Ny / fov);
@@ -78,7 +76,7 @@ function [kernel, ky, s] = forwardOperatorCalc(kspace, param, use)
     % 1. Apply the exponential to get the complex phase modulation: exp(i * Phi)
     % 2. Apply FFT along the spatial dimension (axis 2) to transform the spatial phase
     %    into a frequency-dependent convolution kernel.
-    kernel = ifftshift(fft(fftshift(exp(1i * kernel), 2), [], 2), 2);
+    kernel = ifftshift(fft(fftshift(exp(-1i * kernel), 2), [], 2), 2);
 
 end
 

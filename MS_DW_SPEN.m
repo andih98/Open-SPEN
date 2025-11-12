@@ -420,7 +420,12 @@ filename = sprintf('SPEN_R%d_avg%d%s.seq', R, avg, b_str);
 % seq.write(strcat(path,filename));
 
 
+%%
+simulateSPENfo.spins_per_voxel = 10;
 
+% simulateSPENfo=[];
+
+deriveSPENforwardOperator('ref',seq,sys,simulateSPENfo)
 
 
 

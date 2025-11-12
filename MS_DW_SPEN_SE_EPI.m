@@ -23,7 +23,7 @@ sysDiff.maxSlew = 90 * sysDiff.gamma;      % Custom slew for diffusion
 % Initialize the sequence object
 seq = mr.Sequence(sys);
 
-%% 2. SEQUENCE PARAMETERS (Imaging Geometry)
+%% 2. SEQUENCE PARAMETERS 
 fov = [220e-3, 220e-3, 220e-3]; % Field of View [x, y, z] (m)
 Nx = 100;                      % Matrix size in x (readout)
 Ny = 100;                      % Matrix size in y (SPEN/EPI)
@@ -50,8 +50,8 @@ rfref_dur = 31e-3;             % Duration of the SPEN refocusing RF pulse (s)
 x_gDiff = 60e-3;
 y_gDiff = 0e-3;
 z_gDiff = 0e-3;
-distributeDiffArea = 0.9;      % Factor for diffusion gradient distribution
-addDiffDur = 0e-3;             % Additional duration for diffusion gradients
+distributeDiffArea = 0.9;      % Factor for diffusion gradient distribution (before ref. - after ref.)
+addDiffDur = 0e-3;             % Additional duration for diffusion gradient after ref.
 
 %% 4. RF PULSE DEFINITIONS
 % --- Excitation pulse (90-degree)
@@ -59,7 +59,7 @@ addDiffDur = 0e-3;             % Additional duration for diffusion gradients
     'SliceThickness', sliceThickness, 'apodization', 0.42, ...
     'timeBwProduct', 4, 'PhaseOffset', 0, 'use', 'excitation');
 
-%% 5. K-SPACE SAMPLING STRATEGY (Blips)
+%% 5. Hybrid/SPEN -SPACE SAMPLING STRATEGY
 % Total k-space area to be covered in the y-direction (SPEN encoding)
 area = 2 * Ny * deltak * R;
 
@@ -78,7 +78,7 @@ end
 % This is the core of SPEN: a chirped (swept) RF pulse played simultaneously
 % with a strong gradient ('gref') to encode spatial information.
 
-% Calculate sweep bandwidth
+% Calculate sweep bandwidth (SPEN-cond.)
 sweepBw = R * Ny / rfref_dur;
 
 % Define the SPEN gradient ('gref')
@@ -107,7 +107,7 @@ rfref = makeChirpedRfPulse('duration', rfref_dur, ...
 % Calculate blip duration, rounding to the gradient raster time
 blip_dur = ceil(2 * sqrt(max(rs) / sys.maxSlew) / 10e-6 / 2) * 10e-6 * 2;
 
-% Calculate readout duration
+% Calculate readout duration (SPEN-cond. / full-refocusing)
 roDur = 2 * rfref_dur / Ny - blip_dur
 
 % --- Readout gradient (gRO) with ramp sampling
@@ -147,12 +147,11 @@ durAcq = Ny * mr.calcDuration(gRO); % Total acquisition duration
 % --- Fast recovery pulse (moves magnetization to -z)
 restoreRF = mr.makeBlockPulse(-pi, sys, 'duration', 600e-6, 'use', 'inversion');
 
-% --- Navigator gradients
 % SPEN rephasing gradient
 gre = mr.makeTrapezoid('y', sysCrusher, 'Area', -gref.flatArea, 'delay', mr.calcDuration(gref));
 gy = mr.addGradients({gref, gre}, sys); % Combine SPEN gradient and its rephaser
 
-% Readout pre-/re-phasers for navigators
+% Readout pre-/re-phasers for k-space navigators
 gx1 = mr.makeTrapezoid('x', sysCrusher, 'Area', gRO.area / 4);
 gx2 = mr.makeTrapezoid('x', sysCrusher, 'Area', -gRO.area / 4);
 gNavPre = mr.makeTrapezoid('x', sysCrusher, 'Area', -gRO.area / 2);
